@@ -1,3 +1,5 @@
+require "rubygems"
+require "serialgps"
 module VCAP::CloudController
   module Security
     class SecurityContextConfigurer
@@ -5,17 +7,44 @@ module VCAP::CloudController
         @token_decoder = token_decoder
       end
 
-      def configure(header_token)
-        VCAP::CloudController::SecurityContext.clear
-        token_information = decode_token(header_token)
 
-        user = user_from_token(token_information)
 
-        VCAP::CloudController::SecurityContext.set(user, token_information, header_token)
-      rescue VCAP::CloudController::UaaTokenDecoder::BadToken
-        VCAP::CloudController::SecurityContext.set(nil, :invalid_token, header_token)
+    def location_of_user
+       user_ip_address=request.remote_ip
+       request.env["HTTP_X_FORWARDED_FOR"]
+       user_location="public"
+#get the gps lati and long using https://github.com/jgillick/ruby-serialgps/blob/master/README.rdoc
+#gem install jgillick-ruby-serialgps
+       device = "/dev/ttyUSB0"
+       gps = SerialGPS.new(device)
+       while true
+      data = gps.read
+       if data.key?(:latitude)
+        current_lati= data[:latitude]
+        current_long=data[:longitude]
+       else
+        return false
+       end
       end
+      if location_user_ip.find(ip_address:user_ip_address.to_s)!=nil
+       return user_loaction="Office"
+      elsif location_user_db.find(gps_long :current_long && gps_lati :current_lati)!=nil
+       return user_loaction="Office"
+      else
+       return user_location
+      end
+    end
 
+    def configure(header_token)
+      VCAP::CloudController::SecurityContext.clear
+      token_information = decode_token(header_token)
+
+      user = user_from_token(token_information)
+      user_location = location_of_user
+      VCAP::CloudController::SecurityContext.set(user, token_information, header_token, user_loaction)
+    rescue VCAP::CloudController::UaaTokenDecoder::BadToken
+      VCAP::CloudController::SecurityContext.set(nil, :invalid_token, header_token, nil)
+    end
       private
 
       def decode_token(header_token)

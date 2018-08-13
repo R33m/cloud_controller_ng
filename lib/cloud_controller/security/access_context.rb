@@ -24,6 +24,10 @@ module VCAP::CloudController
       def user
         VCAP::CloudController::SecurityContext.current_user
       end
+      
+      def location
+        VCAP::CloudController::SecurityContext.current_user_location
+      end
     end
   end
 end
