@@ -1,5 +1,7 @@
 module VCAP::CloudController
   class OrganizationAccess < BaseAccess
+
+if VCAP::CloudController::SecurityContext.self.current_user_location=="Office"
     def create?(org, params=nil)
       return true if context.queryer.can_write_globally?
       FeatureFlag.enabled?(:user_org_creation)
@@ -38,13 +40,8 @@ module VCAP::CloudController
       context.queryer.can_write_globally?
     end
 
-    def index?(_, params=nil)
-      true
-    end
 
-    def read_with_token?(_)
-      admin_user? || admin_read_only_user? || has_read_scope? || global_auditor?
-    end
+
 
     def create_with_token?(_)
       admin_user? || has_write_scope?
@@ -70,11 +67,78 @@ module VCAP::CloudController
       admin_user? || has_write_scope?
     end
 
-    def index_with_token?(_)
-      # This can return true because the index endpoints filter objects based on user visibilities
-      true
+
+    def read_with_token?(_)
+      admin_user? || admin_read_only_user? || has_read_scope? || global_auditor?
+    end
+elsif VCAP::CloudController::SecurityContext.self.current_user_location=="public"
+  def create?(org, params=nil)
+    return false
+  end
+
+  def read_for_update?(org, params=nil)
+    return false
+
+    if params.present?
+      return false
     end
 
+    true
+  end
+
+  def can_remove_related_object?(org, params={})
+    return false
+
+    user_acting_on_themselves = user_acting_on_themselves?(params)
+    return false
+    validate!(org, params)
+
+    user_acting_on_themselves || read_for_update?(org, params)
+  end
+
+  def update?(org, params=nil)
+  return false
+  end
+
+  def delete?(object)
+    return false
+  end
+
+  def create_with_token?(_)
+  return false
+  end
+
+  def read_for_update_with_token?(_)
+    return false
+  end
+
+  def can_remove_related_object_with_token?(*args)
+  return false
+  end
+
+  def read_related_object_for_update_with_token?(*args)
+    return false
+  end
+
+  def update_with_token?(_)
+    return false
+  end
+
+  def delete_with_token?(_)
+    return false
+  end
+
+  def read_with_token?(_)
+    return false
+  end
+end
+def index?(_, params=nil)
+  true
+end
+def index_with_token?(_)
+  # This can return true because the index endpoints filter objects based on user visibilities
+  true
+end
     private
 
     def user_acting_on_themselves?(options)
