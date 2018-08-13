@@ -12,8 +12,9 @@ module VCAP::CloudController
     let(:process) { VCAP::CloudController::ProcessModelFactory.make(space: space) }
     let(:route) { VCAP::CloudController::Route.make(domain: domain, space: space) }
     let(:object) { VCAP::CloudController::RouteMappingModel.make(route: route, app: process) }
-
+ let(:user_location){VCAP::CloudController::SecurityContext::current_user_location}
     before { set_current_user(user, scopes: scopes) }
+    context 'Office' do
 
     it_behaves_like :admin_read_only_access
 
@@ -41,4 +42,33 @@ module VCAP::CloudController
       end
     end
   end
+  context 'public' do
+
+  it_behaves_like :admin_read_only_access
+
+  context 'admin' do
+    include_context :admin_setup
+
+    it_behaves_like :read_only_access
+  end
+
+  context 'space developer' do
+    before do
+      org.add_user(user)
+      space.add_developer(user)
+    end
+
+    it_behaves_like :read_only_access
+
+    context 'when the organization is suspended' do
+      before do
+        org.status = 'suspended'
+        org.save
+      end
+
+      it_behaves_like :read_only_access
+    end
+  end
+end
+end
 end

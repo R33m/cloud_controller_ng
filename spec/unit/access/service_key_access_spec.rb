@@ -9,11 +9,11 @@ module VCAP::CloudController
     let(:org) { VCAP::CloudController::Organization.make }
     let(:space) { VCAP::CloudController::Space.make(organization: org) }
     let(:service_instance) { VCAP::CloudController::ManagedServiceInstance.make(space: space) }
-
+ let(:user_location){VCAP::CloudController::SecurityContext::current_user_location}
     let(:object) { VCAP::CloudController::ServiceKey.make(name: 'fake-key', service_instance: service_instance) }
 
     before { set_current_user(user, scopes: scopes) }
-
+context 'Office' do
     it_behaves_like :admin_full_access
     it_behaves_like :admin_read_only_access
 
@@ -136,4 +136,114 @@ module VCAP::CloudController
       it_behaves_like :no_access
     end
   end
+  context 'public' do 
+
+      it_behaves_like :admin_read_only_access
+
+      context 'for a logged in user (defensive)' do
+        it_behaves_like :no_access
+
+        it { is_expected.not_to allow_op_on_object(:read_env, object) }
+      end
+
+      context 'a user that isnt logged in (defensive)' do
+        let(:user) { nil }
+
+        it_behaves_like :no_access
+
+        it { is_expected.not_to allow_op_on_object(:read_env, object) }
+      end
+
+      context 'organization manager (defensive)' do
+        before { org.add_manager(user) }
+
+        it_behaves_like :no_access
+
+        it { is_expected.not_to allow_op_on_object(:read_env, object) }
+      end
+
+      context 'organization billing manager (defensive)' do
+        before { org.add_billing_manager(user) }
+
+        it_behaves_like :no_access
+
+        it { is_expected.not_to allow_op_on_object(:read_env, object) }
+      end
+
+      context 'organization auditor (defensive)' do
+        before { org.add_auditor(user) }
+
+        it_behaves_like :no_access
+
+        it { is_expected.not_to allow_op_on_object(:read_env, object) }
+      end
+
+      context 'organization user (defensive)' do
+        before { org.add_user(user) }
+
+        it_behaves_like :no_access
+
+        it { is_expected.not_to allow_op_on_object(:read_env, object) }
+      end
+
+      context 'space auditor' do
+        before do
+          org.add_user(user)
+          space.add_auditor(user)
+        end
+
+        it_behaves_like :no_access
+
+        it { is_expected.not_to allow_op_on_object(:read_env, object) }
+      end
+
+      context 'space manager (defensive)' do
+        before do
+        nil
+        end
+
+        it_behaves_like :no_access
+
+        it { is_expected.not_to allow_op_on_object(:read_env, object) }
+      end
+
+      context 'space developer' do
+        before do
+          org.add_user(user)
+          space.add_developer(user)
+        end
+
+
+        it { is_expected.to allow_op_on_object :read, object }
+
+        it { is_expected.to allow_op_on_object(:read_env, object) }
+
+        context 'when the organization is suspended' do
+          before { allow(object).to receive(:in_suspended_org?).and_return(true) }
+
+          it_behaves_like :read_only_access
+        end
+      end
+
+      context 'any user using client without cloud_controller.write' do
+        let(:scopes) { ['cloud_controller.read'] }
+
+        before do
+          nil
+        end
+
+        it_behaves_like :read_only_access
+      end
+
+      context 'any user using client without cloud_controller.read' do
+        let(:scopes) { [] }
+
+        before do
+          nil
+        end
+
+        it_behaves_like :no_access
+      end
+    end
+end
 end

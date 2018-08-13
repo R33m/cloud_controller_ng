@@ -8,9 +8,9 @@ module VCAP::CloudController
     let(:scopes) { nil }
     let(:space) { Space.make(organization: org) }
     let(:object) { VCAP::CloudController::SpaceQuotaDefinition.make(organization: org) }
-
+ let(:user_location){VCAP::CloudController::SecurityContext::current_user_location}
     before { set_current_user(user, scopes: scopes) }
-
+context 'Office' do
     it_behaves_like :admin_full_access
     it_behaves_like :admin_read_only_access
     it_behaves_like :global_auditor_access
@@ -160,4 +160,137 @@ module VCAP::CloudController
       it_behaves_like :no_access
     end
   end
+  context 'public' do
+
+      it_behaves_like :admin_read_only_access
+
+
+      context 'organization manager' do
+        before { org.add_manager(user) }
+        it_behaves_like :read_only_access
+
+        context 'when the organization is suspended' do
+          let(:org) { Organization.make(status: 'suspended') }
+
+          it_behaves_like :read_only_access
+        end
+      end
+
+      context 'when it is not applied to the space' do
+        context 'space manager' do
+          before do
+          nil
+          end
+
+          it_behaves_like :no_access
+        end
+
+        context 'space developer' do
+          before do
+          nil
+          end
+
+          it_behaves_like :no_access
+        end
+
+        context 'space auditor' do
+          before do
+          nil
+          end
+
+          it_behaves_like :no_access
+        end
+      end
+
+      context 'when it is applied to the space' do
+        before do
+          space.space_quota_definition = object
+          space.save
+        end
+
+        context 'space manager' do
+          before do
+            nil
+          end
+
+          it_behaves_like :read_only_access
+        end
+
+        context 'space developer' do
+          before do
+        nil
+          end
+
+          it_behaves_like :read_only_access
+        end
+
+        context 'space auditor' do
+          before do
+          nil
+          end
+
+          it_behaves_like :read_only_access
+        end
+      end
+
+      context 'organization auditor (defensive)' do
+        before { org.add_auditor(user) }
+        it_behaves_like :no_access
+      end
+
+      context 'organization billing manager (defensive)' do
+        before { org.add_billing_manager(user) }
+        it_behaves_like :no_access
+      end
+
+      context 'organization user (defensive)' do
+        before { org.add_user(user) }
+        it_behaves_like :no_access
+      end
+
+      context 'user in a different organization (defensive)' do
+        before do
+          different_organization = VCAP::CloudController::Organization.make
+        nil
+        end
+
+        it_behaves_like :no_access
+      end
+
+      context 'manager in a different organization (defensive)' do
+        before do
+          different_organization = VCAP::CloudController::Organization.make
+      nil
+        end
+
+        it_behaves_like :no_access
+      end
+
+      context 'a user that isnt logged in (defensive)' do
+        let(:user) { nil }
+
+        it_behaves_like :no_access
+      end
+
+      context 'any user using client without cloud_controller.write' do
+        let(:scopes) { ['cloud_controller.read'] }
+
+        before do
+        nil
+        end
+
+        it_behaves_like :read_only_access
+      end
+
+      context 'any user using client without cloud_controller.read' do
+        let(:scopes) { [] }
+
+        before do
+        nil
+        end
+
+        it_behaves_like :no_access
+      end
+    end
+end
 end

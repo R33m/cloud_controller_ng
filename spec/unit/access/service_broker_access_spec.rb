@@ -8,9 +8,9 @@ module VCAP::CloudController
     let(:space) { VCAP::CloudController::Space.make(organization: org) }
     let(:object) { VCAP::CloudController::ServiceBroker.make }
     let(:broker_with_space) { VCAP::CloudController::ServiceBroker.make space: space }
-
+ let(:user_location){VCAP::CloudController::SecurityContext::current_user_location}
     before { set_current_user(user) }
-
+context 'Office' do
     it_behaves_like :admin_read_only_access
 
     context 'admin' do
@@ -114,4 +114,106 @@ module VCAP::CloudController
       it { is_expected.to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
     end
   end
+  context 'public' do 
+      it_behaves_like :admin_read_only_access
+
+      context 'admin' do
+        include_context :admin_setup
+        it_behaves_like :read_only_access
+
+        context 'when FeatureFlag space_scoped_private_broker_creation is false' do
+          before { FeatureFlag.make(name: 'space_scoped_private_broker_creation', enabled: false, error_message: nil) }
+
+          it_behaves_like :read_only_access
+        end
+      end
+
+      context 'organization manager (defensive)' do
+        before { org.add_manager(user) }
+        it_behaves_like :no_access
+        it { is_expected.to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
+      end
+
+      context 'organization user (defensive)' do
+        before { org.add_user(user) }
+        it_behaves_like :no_access
+        it { is_expected.to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
+      end
+
+      context 'space developer' do
+        before do
+          org.add_user user
+          space.add_developer user
+        end
+        it_behaves_like :no_access
+
+        context 'when FeatureFlag space_scoped_private_broker_creation is true' do
+          before { FeatureFlag.make(name: 'space_scoped_private_broker_creation', enabled: true, error_message: nil) }
+          it { is_expected.to allow_op_on_object :create, broker_with_space }
+        end
+
+        context 'when FeatureFlag space_scoped_private_broker_creation is false' do
+          before { FeatureFlag.make(name: 'space_scoped_private_broker_creation', enabled: false, error_message: nil) }
+
+          it 'does not allow the create' do
+            expect { subject.create?(broker_with_space) }.to raise_error(CloudController::Errors::ApiError, /space_scoped_private_broker_creation/)
+          end
+        end
+
+
+        it { is_expected.to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
+      end
+
+      context 'space manager' do
+        before do
+          org.add_user user
+          space.add_manager user
+        end
+        it_behaves_like :no_access
+
+        it { is_expected.to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
+      end
+
+      context 'space auditor' do
+        before do
+          org.add_user user
+          space.add_auditor user
+        end
+        it_behaves_like :no_access
+
+        it { is_expected.to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
+      end
+
+      context 'unassociated user' do
+        it_behaves_like :no_access
+        it { is_expected.to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
+      end
+
+      context 'user in a different organization (defensive)' do
+        before do
+          different_organization = VCAP::CloudController::Organization.make
+
+        end
+
+        it_behaves_like :no_access
+        it { is_expected.to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
+      end
+
+      context 'manager in a different organization (defensive)' do
+        before do
+          different_organization = VCAP::CloudController::Organization.make
+
+        end
+
+        it_behaves_like :no_access
+        it { is_expected.to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
+      end
+
+      context 'a user that isnt logged in (defensive)' do
+        let(:user) { nil }
+        it_behaves_like :no_access
+        it { is_expected.to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
+      end
+    end
+end
 end
