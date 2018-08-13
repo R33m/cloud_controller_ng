@@ -4,12 +4,14 @@ module VCAP::CloudController
       Thread.current[:vcap_user] = nil
       Thread.current[:vcap_token] = nil
       Thread.current[:vcap_auth_token] = nil
+      Thread.current[:vcap_user_location] = nil
     end
 
-    def self.set(user, token=nil, auth_token=nil)
+    def self.set(user, token=nil, auth_token=nil,location_of_user)
       Thread.current[:vcap_user] = user
       Thread.current[:vcap_token] = token
       Thread.current[:vcap_auth_token] = auth_token
+      Thread.current[:vcap_user_location] = location_of_user
     end
 
     def self.current_user
@@ -75,6 +77,9 @@ module VCAP::CloudController
     def self.issuer
       return token['iss'] if valid_token?
       ''
+    end
+    def self.current_user_location
+      Thread.current_user_location[:vcap_user_location]
     end
   end
 end
